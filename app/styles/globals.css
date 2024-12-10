@@ -6,7 +6,6 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-    --font-inter: var(--font-inter);
 
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
@@ -76,19 +75,18 @@
   }
 }
 
-.bark-gradient {
-  @apply bg-gradient-to-r from-[#e1d8c7] to-[#d1c8b7] text-transparent bg-clip-text;
-}
+@layer components {
+  .bark-gradient {
+    @apply bg-gradient-to-r from-[#e1d8c7] to-[#d1c8b7] text-transparent bg-clip-text;
+  }
 
-.shadow-smooth {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05), 
-              0 1px 2px rgba(0,0,0,0.1);
-  transition: box-shadow 0.3s ease-in-out;
-}
+  .shadow-smooth {
+    @apply shadow-sm transition-shadow duration-300;
+  }
 
-.shadow-smooth:hover {
-  box-shadow: 0 3px 6px rgba(0,0,0,0.1), 
-              0 3px 6px rgba(0,0,0,0.15);
+  .shadow-smooth:hover {
+    @apply shadow-md;
+  }
 }
 
 .font-inter {

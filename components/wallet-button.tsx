@@ -1,87 +1,69 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
-import { useWalletConnection } from "./wallet-provider"
+import { useWallet } from "@solana/wallet-adapter-react"
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui"
 import { Loader2 } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import "@/app/styles/wallet-button.css"
 
-export function WalletButton() {
-  const { publicKey, connect, disconnect } = useWalletConnection();
-  const [isLoading, setIsLoading] = useState(false);
+interface WalletButtonProps {
+  onClick?: () => void;
+  disabled?: boolean;
+  children?: React.ReactNode;
+  className?: string;
+  variant?: 'default' | 'wide';
+}
 
-  const handleConnect = async () => {
-    setIsLoading(true);
-    try {
-      await connect();
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
-    } finally {
-      setIsLoading(false);
+export function WalletButton({ 
+  onClick, 
+  disabled = false, 
+  children, 
+  className = "",
+  variant = 'wide'
+}: WalletButtonProps) {
+  const { publicKey, connecting, connected, disconnect } = useWallet()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) return null
+
+  const handleClick = () => {
+    if (connected) {
+      disconnect()
+    } else if (onClick) {
+      onClick()
     }
-  };
+  }
 
-  const handleDisconnect = async () => {
-    setIsLoading(true);
-    try {
-      await disconnect();
-    } catch (error) {
-      console.error('Failed to disconnect wallet:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const buttonClass = `wallet-adapter-button ${variant === 'wide' ? 'w-full' : ''} ${className}`
 
-  if (!publicKey) {
+  if (connected && publicKey) {
     return (
-      <Button onClick={handleConnect} disabled={isLoading} aria-label="Connect Wallet">
-        {isLoading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Connecting...
-          </>
-        ) : (
-          'Connect Wallet'
-        )}
+      <Button 
+        variant="outline" 
+        className={buttonClass}
+        onClick={handleClick}
+        disabled={disabled}
+      >
+        {children || `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`}
       </Button>
-    );
+    )
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" aria-label="Wallet Menu">
-          {publicKey.toBase58().slice(0, 4)}...{publicKey.toBase58().slice(-4)}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>My Wallet</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => console.log('View balance')}>
-          View Balance
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => console.log('Transaction history')}>
-          Transaction History
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={handleDisconnect} disabled={isLoading}>
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Disconnecting...
-            </>
-          ) : (
-            'Disconnect Wallet'
-          )}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+    <WalletMultiButton className={buttonClass}>
+      {connecting ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Connecting...
+        </>
+      ) : (
+        children || 'Connect Wallet'
+      )}
+    </WalletMultiButton>
+  )
 }

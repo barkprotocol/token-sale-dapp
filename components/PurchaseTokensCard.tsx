@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useTransition, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useTransition } from 'react';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,28 +11,30 @@ import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from 'lucide-react'
 import { TOKEN_SALE_CONFIG } from '@/config/token-sale'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useWalletConnection } from "./wallet-provider"
-import { fetchPrices, getBARKPrice, convertToUSD, convertFromUSD, Currency, PriceData } from '@/lib/currency-utils'
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { fetchPrices, getBARKPrice, convertToUSD, convertFromUSD, PriceData } from '@/lib/currency-utils'
 import { getSaleInfo, isSaleActive, validatePurchase } from '@/lib/server-utils'
 import { transferTokens } from '@/lib/token-transfers'
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, Transaction } from '@solana/web3.js';
+import { WalletButton } from './wallet-button';
 
-type Currency = 'SOL' | 'USDC'
+type PaymentCurrency = 'SOL' | 'USDC'
 
-const currencyIcons = {
+const currencyIcons: Record<PaymentCurrency, string> = {
   SOL: "https://ucarecdn.com/0aa23f11-40b3-4cdc-891b-a169ed9f9328/sol.png",
   USDC: "https://ucarecdn.com/ee18c01a-d01d-4ad6-adb6-cac9a5539d2c/usdc.png"
 }
 
 export function PurchaseTokensCard() {
   const [amount, setAmount] = useState(TOKEN_SALE_CONFIG.minPurchase);
-  const [currency, setCurrency] = useState<Currency>('SOL');
+  const [currency, setCurrency] = useState<PaymentCurrency>('SOL');
   const [prices, setPrices] = useState<PriceData | null>(null);
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition();
   const [saleInfo, setSaleInfo] = useState<any>(null);
   const [isActive, setIsActive] = useState(false);
   const { toast } = useToast()
-  const { publicKey, connection } = useWalletConnection();
+  const { publicKey } = useWallet();
+  const { connection } = useConnection();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,13 +44,15 @@ export function PurchaseTokensCard() {
         setIsActive(await isSaleActive());
         const priceData = await fetchPrices();
         setPrices(priceData);
-        const barkPriceSOL = getBARKPrice('SOL', priceData);
-        const barkPriceUSDC = getBARKPrice('USDC', priceData);
-        setSaleInfo(prevInfo => ({
-          ...prevInfo,
-          priceSOL: barkPriceSOL,
-          priceUSDC: barkPriceUSDC
-        }));
+        if (priceData) {
+          const barkPriceSOL = getBARKPrice('SOL', priceData);
+          const barkPriceUSDC = getBARKPrice('USDC', priceData);
+          setSaleInfo((prevInfo: any) => ({
+            ...prevInfo,
+            priceSOL: barkPriceSOL,
+            priceUSDC: barkPriceUSDC
+          }));
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
         toast({
@@ -79,11 +84,11 @@ export function PurchaseTokensCard() {
   }, []);
 
   const handleCurrencyChange = useCallback((value: string) => {
-    setCurrency(value as Currency);
+    setCurrency(value as PaymentCurrency);
   }, []);
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!publicKey || !connection) {
       toast({
         title: "Wallet not connected",
@@ -100,42 +105,48 @@ export function PurchaseTokensCard() {
       })
       return;
     }
-    startTransition(async () => {
-      try {
-        // Validate the purchase
-        validatePurchase(amount);
-
-        // Calculate the cost in the selected currency
-        const cost = currency === 'SOL' 
-          ? amount * saleInfo.priceSOL
-          : convertToUSD(amount * saleInfo.priceSOL, 'SOL', prices);
-
-        // Execute the token transfer
-        const txid = await transferTokens(
-          connection,
-          publicKey,
-          new PublicKey(TOKEN_SALE_CONFIG.receivingWallet),
-          Math.round(cost * (currency === 'SOL' ? 1e9 : 1e6)), // Convert to lamports or USDC base units
-          currency
-        );
-
-        // Update the sale info after successful purchase
-        const updatedInfo = await getSaleInfo();
-        setSaleInfo(updatedInfo);
-
-        toast({
-          title: "Purchase Successful",
-          description: `Successfully purchased ${amount} BARK tokens. Transaction ID: ${txid}`,
-        })
-      } catch (error) {
-        console.error('Purchase error:', error);
-        toast({
-          title: "Purchase Failed",
-          description: error instanceof Error ? error.message : 'An unknown error occurred',
-          variant: "destructive",
-        })
-      }
-    })
+    if (!prices) {
+      toast({
+        title: "Price Information Unavailable",
+        description: "Unable to fetch current prices. Please try again later.",
+        variant: "destructive",
+      })
+      return;
+    }
+    startTransition(() => {
+      (async () => {
+        try {
+          validatePurchase(amount);
+          const cost = currency === 'SOL' 
+            ? amount * saleInfo.priceSOL
+            : convertToUSD(amount * saleInfo.priceSOL, 'SOL', prices);
+          const serializedTransaction = await transferTokens(
+            connection,
+            publicKey,
+            new PublicKey(TOKEN_SALE_CONFIG.receivingWallet),
+            Math.round(cost * (currency === 'SOL' ? 1e9 : 1e6)),
+            currency
+          );
+          const transaction = Transaction.from(Buffer.from(serializedTransaction, 'base64'));
+          const signedTransaction = await window.solana.signTransaction(transaction);
+          const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+          await connection.confirmTransaction(signature, 'confirmed');
+          const updatedInfo = await getSaleInfo();
+          setSaleInfo(updatedInfo);
+          toast({
+            title: "Purchase Successful",
+            description: `Successfully purchased ${amount} BARK tokens. Transaction ID: ${signature}`,
+          })
+        } catch (error) {
+          console.error('Purchase error:', error);
+          toast({
+            title: "Purchase Failed",
+            description: error instanceof Error ? error.message : 'An unknown error occurred',
+            variant: "destructive",
+          })
+        }
+      })();
+    });
   }, [amount, currency, publicKey, connection, saleInfo, prices, isActive, toast]);
 
   const totalCost = saleInfo && prices
@@ -156,7 +167,9 @@ export function PurchaseTokensCard() {
               <span className="text-sm font-medium text-gray-700">Price per BARK:</span>
               <div className="flex items-center">
                 <span className="text-sm font-bold text-[#e1d8c7] mr-2">
-                  {saleInfo ? (currency === 'SOL' ? saleInfo.priceSOL.toFixed(6) : saleInfo.priceUSDC.toFixed(6)) : '...'} {currency}
+                  {saleInfo && prices
+                    ? (currency === 'SOL' ? saleInfo.priceSOL.toFixed(6) : saleInfo.priceUSDC.toFixed(6))
+                    : '...'} {currency}
                 </span>
                 <Image
                   src={currencyIcons[currency]}
@@ -182,7 +195,7 @@ export function PurchaseTokensCard() {
                 type="button"
                 onClick={decrementAmount}
                 variant="outline"
-                className="rounded-r-none"
+                className="rounded-r-none bg-[#e1d8c7] text-gray-900 hover:bg-[#d1c8b7]"
                 disabled={isPending}
               >
                 -
@@ -203,7 +216,7 @@ export function PurchaseTokensCard() {
                 type="button"
                 onClick={incrementAmount}
                 variant="outline"
-                className="rounded-l-none"
+                className="rounded-l-none bg-[#e1d8c7] text-gray-900 hover:bg-[#d1c8b7]"
                 disabled={isPending}
               >
                 +
@@ -230,7 +243,7 @@ export function PurchaseTokensCard() {
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {(['SOL', 'USDC'] as Currency[]).map((curr) => (
+                {(['SOL', 'USDC'] as PaymentCurrency[]).map((curr) => (
                   <SelectItem key={curr} value={curr}>
                     <div className="flex items-center">
                       <Image
@@ -253,24 +266,23 @@ export function PurchaseTokensCard() {
               {totalCost.toFixed(6)} {currency}
             </span>
           </div>
-          <Button 
-            type="submit" 
-            className="w-full bg-[#e1d8c7] text-gray-900 hover:bg-[#d1c8b7]"
-            disabled={isPending || !publicKey || !isActive}
+          <WalletButton 
+            onClick={handleSubmit}
+            disabled={isPending || !isActive}
           >
-            {isPending ? (
+            {!publicKey ? (
+              'Connect Wallet'
+            ) : isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Processing...
               </>
             ) : !isActive ? (
               'Sale Inactive'
-            ) : !publicKey ? (
-              'Connect Wallet to Purchase'
             ) : (
               'Buy BARK Tokens'
             )}
-          </Button>
+          </WalletButton>
         </form>
       </CardContent>
     </Card>

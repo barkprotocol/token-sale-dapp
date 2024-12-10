@@ -1,3 +1,5 @@
+'use client'
+
 import { NextResponse } from 'next/server';
 import { TOKEN_SALE_CONFIG } from '@/config/token-sale';
 import { fetchPrices } from '@/lib/currency-utils';
@@ -41,8 +43,17 @@ export async function GET() {
     // Return sale information as JSON response
     return NextResponse.json(saleInfo);
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching sale information:', error);
-    return NextResponse.json({ error: `Failed to fetch sale information: ${error.message || error}` }, { status: 500 });
+    
+    let errorMessage = 'An unknown error occurred';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    
+    return NextResponse.json({ error: `Failed to fetch sale information: ${errorMessage}` }, { status: 500 });
   }
 }
+

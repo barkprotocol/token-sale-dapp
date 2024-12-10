@@ -2,10 +2,9 @@ import {
   Connection,
   PublicKey,
   Transaction,
-  sendAndConfirmTransaction,
   SystemProgram,
   LAMPORTS_PER_SOL,
-  Keypair,
+  Commitment,
 } from '@solana/web3.js';
 import {
   TOKEN_PROGRAM_ID,
@@ -19,11 +18,11 @@ import { TOKEN_SALE_CONFIG } from '@/config/token-sale';
 
 // Mainnet USDC mint address
 const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); 
-const TRANSACTION_OPTIONS = { commitment: 'confirmed' };
+const TRANSACTION_OPTIONS = { commitment: 'confirmed' as Commitment };
 
 export async function transferTokens(
   connection: Connection,
-  payerKeypair: Keypair,
+  payerPublicKey: PublicKey,
   recipientAccount: PublicKey,
   amount: number,
   currency: 'SOL' | 'USDC'
@@ -37,18 +36,18 @@ export async function transferTokens(
 
     if (currency === 'SOL') {
       // Convert SOL to lamports (smallest unit of SOL)
-      const lamports = amount * LAMPORTS_PER_SOL;
+      const lamports = amount;
       transaction.add(
         SystemProgram.transfer({
-          fromPubkey: payerKeypair.publicKey,
+          fromPubkey: payerPublicKey,
           toPubkey: recipientAccount,
           lamports,
         })
       );
     } else if (currency === 'USDC') {
       // Convert amount to smallest unit (USDC uses 6 decimals)
-      const amountInSmallestUnit = amount * Math.pow(10, 6); // 6 decimals for USDC
-      const fromTokenAccount = await getAssociatedTokenAddress(USDC_MINT, payerKeypair.publicKey);
+      const amountInSmallestUnit = amount; // amount is already in the smallest unit
+      const fromTokenAccount = await getAssociatedTokenAddress(USDC_MINT, payerPublicKey);
       const toTokenAccount = await getAssociatedTokenAddress(USDC_MINT, recipientAccount);
 
       // Check if the recipient's token account exists
@@ -57,7 +56,7 @@ export async function transferTokens(
       if (!receiverAccount) {
         transaction.add(
           createAssociatedTokenAccountInstruction(
-            payerKeypair.publicKey,
+            payerPublicKey,
             toTokenAccount,
             recipientAccount,
             USDC_MINT
@@ -69,7 +68,7 @@ export async function transferTokens(
         createTransferInstruction(
           fromTokenAccount,
           toTokenAccount,
-          payerKeypair.publicKey,
+          payerPublicKey,
           amountInSmallestUnit,
           [],
           TOKEN_PROGRAM_ID
@@ -79,19 +78,26 @@ export async function transferTokens(
       throw new Error('Unsupported currency');
     }
 
-    // Send the transaction
-    const signature = await sendAndConfirmTransaction(connection, transaction, [payerKeypair], TRANSACTION_OPTIONS);
-    console.log(`Transaction successful: ${signature}`);
-    return signature;
-  } catch (error) {
+    transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    transaction.feePayer = payerPublicKey;
+
+    // Serialize the transaction
+    const serializedTransaction = transaction.serialize({ requireAllSignatures: false }).toString('base64');
+
+    return serializedTransaction;
+  } catch (error: unknown) {
     console.error('Error in transferTokens:', error);
-    throw new Error(`Transfer failed: ${error.message}`);
+    if (error instanceof Error) {
+      throw new Error(`Transfer failed: ${error.message}`);
+    } else {
+      throw new Error('Transfer failed: Unknown error');
+    }
   }
 }
 
 export async function mintBARKTokens(
   connection: Connection,
-  mintAuthorityKeypair: Keypair,
+  mintAuthorityPublicKey: PublicKey,
   recipientAccount: PublicKey,
   amount: number
 ): Promise<string> {
@@ -109,29 +115,37 @@ export async function mintBARKTokens(
       createMintToInstruction(
         barkMint,
         recipientTokenAccount,
-        mintAuthorityKeypair.publicKey,
+        mintAuthorityPublicKey,
         amountInSmallestUnit,
         [],
         TOKEN_PROGRAM_ID
       )
     );
 
-    const signature = await sendAndConfirmTransaction(connection, transaction, [mintAuthorityKeypair], TRANSACTION_OPTIONS);
-    console.log(`BARK Tokens minted: ${signature}`);
-    return signature;
-  } catch (error) {
+    transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    transaction.feePayer = mintAuthorityPublicKey;
+
+    // Serialize the transaction
+    const serializedTransaction = transaction.serialize({ requireAllSignatures: false }).toString('base64');
+
+    return serializedTransaction;
+  } catch (error: unknown) {
     console.error('Error in mintBARKTokens:', error);
-    throw new Error(`Minting failed: ${error.message}`);
+    if (error instanceof Error) {
+      throw new Error(`Minting failed: ${error.message}`);
+    } else {
+      throw new Error('Minting failed: Unknown error');
+    }
   }
 }
 
 export async function createTokenAccount(
   connection: Connection,
-  payerKeypair: Keypair,
+  payerPublicKey: PublicKey,
   mint: PublicKey
 ): Promise<PublicKey> {
   try {
-    const associatedTokenAddress = await getAssociatedTokenAddress(mint, payerKeypair.publicKey);
+    const associatedTokenAddress = await getAssociatedTokenAddress(mint, payerPublicKey);
 
     // Check if the token account already exists
     const existingAccount = await getAccount(connection, associatedTokenAddress).catch(() => null);
@@ -143,19 +157,27 @@ export async function createTokenAccount(
 
     const transaction = new Transaction().add(
       createAssociatedTokenAccountInstruction(
-        payerKeypair.publicKey,
+        payerPublicKey,
         associatedTokenAddress,
-        payerKeypair.publicKey,
+        payerPublicKey,
         mint
       )
     );
 
-    await sendAndConfirmTransaction(connection, transaction, [payerKeypair], TRANSACTION_OPTIONS);
+    transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    transaction.feePayer = payerPublicKey;
 
-    console.log(`Token account created: ${associatedTokenAddress.toBase58()}`);
+    // Serialize the transaction
+    const serializedTransaction = transaction.serialize({ requireAllSignatures: false }).toString('base64');
+
+    console.log(`Token account creation transaction serialized: ${serializedTransaction}`);
     return associatedTokenAddress;
-  } catch (error) {
-    console.error(`[createTokenAccount] Error for mint ${mint.toBase58()} and payer ${payerKeypair.publicKey.toBase58()}:`, error);
-    throw new Error(`Account creation failed: ${error.message}`);
+  } catch (error: unknown) {
+    console.error(`[createTokenAccount] Error for mint ${mint.toBase58()} and payer ${payerPublicKey.toBase58()}:`, error);
+    if (error instanceof Error) {
+      throw new Error(`Account creation failed: ${error.message}`);
+    } else {
+      throw new Error('Account creation failed: Unknown error');
+    }
   }
 }

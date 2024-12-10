@@ -1,3 +1,5 @@
+'use client'
+
 import Link from "next/link";
 import { Logo } from "./logo";
 import { WalletButton } from "./wallet-button";
@@ -9,6 +11,12 @@ export function Header() {
         <div className="flex justify-between items-center">
           <Logo />
           <nav className="flex items-center space-x-6">
+            <Link 
+              href="/about" 
+              className="text-sm font-medium hover:text-gray-600 transition-colors font-inter"
+            >
+              About
+            </Link>
             <Link 
               href="/faq" 
               className="text-sm font-medium hover:text-gray-600 transition-colors font-inter"
@@ -22,4 +30,3 @@ export function Header() {
     </header>
   );
 }
-
