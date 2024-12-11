@@ -12,13 +12,13 @@ export function Header() {
           <Logo />
           <nav className="flex items-center space-x-6">
             <Link 
-              href="/token-sale" 
+              href="./pages/about" 
               className="text-sm font-medium hover:text-gray-600 transition-colors font-inter"
             >
-              Token Sale
+              About
             </Link>
             <Link 
-              href="/faq" 
+              href="./pages/faq" 
               className="text-sm font-medium hover:text-gray-600 transition-colors font-inter"
             >
               FAQ
@@ -30,3 +30,4 @@ export function Header() {
     </header>
   );
 }
+
