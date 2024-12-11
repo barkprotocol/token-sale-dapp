@@ -1,5 +1,3 @@
-'use client';
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
@@ -30,8 +28,50 @@ export default function AboutPage() {
             </ul>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-3xl font-bold text-center">Our Team</CardTitle>
+          </CardHeader>
+          <CardContent className="prose max-w-none">
+            <p>
+              The BARK Token project is led by a team of passionate individuals with diverse backgrounds in blockchain technology, animal welfare, and business development.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              <div>
+                <h3 className="text-xl font-semibold">Jane Doe</h3>
+                <p className="text-sm text-gray-600">Founder & CEO</p>
+                <p className="mt-2">
+                  With over 10 years of experience in animal welfare and 5 years in blockchain, Jane leads the vision and strategy for BARK Token.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">John Smith</h3>
+                <p className="text-sm text-gray-600">CTO</p>
+                <p className="mt-2">
+                  A veteran software engineer with expertise in Solana and Ethereum, John oversees the technical development of the BARK Token ecosystem.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">Emily Brown</h3>
+                <p className="text-sm text-gray-600">Head of Partnerships</p>
+                <p className="mt-2">
+                  Emily brings her extensive network in the pet care industry to forge strategic partnerships and drive adoption of BARK Token.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">Michael Lee</h3>
+                <p className="text-sm text-gray-600">Lead Smart Contract Developer</p>
+                <p className="mt-2">
+                  With a background in both veterinary science and blockchain development, Michael ensures our smart contracts align with real-world animal welfare needs.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </main>
       <Footer />
     </div>
   );
 }
+

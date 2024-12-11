@@ -29,8 +29,6 @@ export function WalletButton({
     setMounted(true)
   }, [])
 
-  if (!mounted) return null
-
   const handleClick = () => {
     if (connected) {
       disconnect()
@@ -39,31 +37,36 @@ export function WalletButton({
     }
   }
 
-  const buttonClass = `wallet-adapter-button ${variant === 'wide' ? 'w-full' : ''} ${className}`
+  const buttonClass = `wallet-adapter-button w-full ${className} h-10`
 
-  if (connected && publicKey) {
-    return (
-      <Button 
-        variant="outline" 
-        className={buttonClass}
-        onClick={handleClick}
-        disabled={disabled}
-      >
-        {children || `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`}
-      </Button>
-    )
+  if (!mounted) {
+    return null
   }
 
   return (
-    <WalletMultiButton className={buttonClass}>
-      {connecting ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Connecting...
-        </>
+    <>
+      {connected && publicKey ? (
+        <Button 
+          variant="outline" 
+          className={buttonClass}
+          onClick={handleClick}
+          disabled={disabled}
+        >
+          {children || `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`}
+        </Button>
       ) : (
-        children || 'Connect Wallet'
+        <WalletMultiButton className={buttonClass}>
+          {connecting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Connecting...
+            </>
+          ) : (
+            children || 'Connect Wallet'
+          )}
+        </WalletMultiButton>
       )}
-    </WalletMultiButton>
+    </>
   )
 }
+

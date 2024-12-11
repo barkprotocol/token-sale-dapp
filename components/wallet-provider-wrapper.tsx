@@ -53,4 +53,3 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
     </ErrorBoundary>
   );
 }
-

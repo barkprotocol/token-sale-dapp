@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { useWalletConnection } from "./wallet-provider"
 import { fetchPrices, getBARKPrice, convertToUSD, convertFromUSD } from '@/lib/currency-utils'
 import { getSaleInfo, isSaleActive, validatePurchase } from '@/lib/server-utils'
 import { transferTokens } from '@/lib/token-transfers'
+import { PublicKey } from '@solana/web3.js';
 
 export function TokenSale() {
   const [amount, setAmount] = useState(TOKEN_SALE_CONFIG.minPurchase);
@@ -61,9 +62,11 @@ export function TokenSale() {
     }
   }, []);
 
-  const totalCost = saleInfo ? (amount * saleInfo.priceSOL).toFixed(5) : '0';
+  const totalCost = useMemo(() => {
+    return saleInfo ? (amount * saleInfo.priceSOL).toFixed(5) : '0';
+  }, [amount, saleInfo]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!publicKey || !connection) {
       toast({
@@ -108,7 +111,83 @@ export function TokenSale() {
     } finally {
       setIsPending(false);
     }
-  };
+  }, [amount, connection, isActive, publicKey, saleInfo, toast]);
+
+  const formContent = useMemo(() => (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-[#e1d8c7]">
+          <p>Price: {saleInfo ? saleInfo.priceSOL.toFixed(6) : '...'} SOL per BARK</p>
+          <p>Available: {saleInfo ? formatNumber(saleInfo.remainingTokens) : '...'} BARK</p>
+        </div>
+        <Image
+          src="/solana-sol-logo.svg"
+          alt="Solana logo"
+          width={40}
+          height={40}
+          className="text-[#e1d8c7]"
+        />
+      </div>
+      <div>
+        <label htmlFor="amount" className="block text-sm font-medium mb-1 text-gray-700">
+          Amount (BARK)
+        </label>
+        <div className="flex items-center">
+          <Button
+            type="button"
+            onClick={decrementAmount}
+            variant="outline"
+            className="rounded-r-none"
+            disabled={isPending}
+          >
+            -
+          </Button>
+          <Input
+            type="number"
+            id="amount"
+            value={amount}
+            onChange={handleAmountChange}
+            className="rounded-none text-center"
+            min={TOKEN_SALE_CONFIG.minPurchase}
+            max={TOKEN_SALE_CONFIG.maxPurchase}
+            step={1000}
+            required
+            disabled={isPending}
+          />
+          <Button
+            type="button"
+            onClick={incrementAmount}
+            variant="outline"
+            className="rounded-l-none"
+            disabled={isPending}
+          >
+            +
+          </Button>
+        </div>
+      </div>
+      <div className="text-sm text-[#e1d8c7]">
+        Total cost: {totalCost} SOL
+      </div>
+      <Button 
+        type="submit" 
+        className="w-full bg-[#e1d8c7] text-gray-900 hover:bg-[#d1c8b7]"
+        disabled={isPending || !publicKey || !isActive}
+      >
+        {isPending ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Processing...
+          </>
+        ) : !isActive ? (
+          'Sale Inactive'
+        ) : !publicKey ? (
+          'Connect Wallet to Purchase'
+        ) : (
+          'Buy BARK Tokens'
+        )}
+      </Button>
+    </form>
+  ), [amount, handleAmountChange, incrementAmount, decrementAmount, isActive, isPending, publicKey, saleInfo, totalCost, handleSubmit]);
 
   return (
     <Card>
@@ -116,80 +195,9 @@ export function TokenSale() {
         <CardTitle>Purchase BARK Tokens</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-[#e1d8c7]">
-              <p>Price: {saleInfo ? saleInfo.priceSOL.toFixed(6) : '...'} SOL per BARK</p>
-              <p>Available: {saleInfo ? formatNumber(saleInfo.remainingTokens) : '...'} BARK</p>
-            </div>
-            <Image
-              src="/solana-sol-logo.svg"
-              alt="Solana logo"
-              width={40}
-              height={40}
-              className="text-[#e1d8c7]"
-            />
-          </div>
-          <div>
-            <label htmlFor="amount" className="block text-sm font-medium mb-1 text-gray-700">
-              Amount (BARK)
-            </label>
-            <div className="flex items-center">
-              <Button
-                type="button"
-                onClick={decrementAmount}
-                variant="outline"
-                className="rounded-r-none"
-                disabled={isPending}
-              >
-                -
-              </Button>
-              <Input
-                type="number"
-                id="amount"
-                value={amount}
-                onChange={handleAmountChange}
-                className="rounded-none text-center"
-                min={TOKEN_SALE_CONFIG.minPurchase}
-                max={TOKEN_SALE_CONFIG.maxPurchase}
-                step={1000}
-                required
-                disabled={isPending}
-              />
-              <Button
-                type="button"
-                onClick={incrementAmount}
-                variant="outline"
-                className="rounded-l-none"
-                disabled={isPending}
-              >
-                +
-              </Button>
-            </div>
-          </div>
-          <div className="text-sm text-[#e1d8c7]">
-            Total cost: {totalCost} SOL
-          </div>
-          <Button 
-            type="submit" 
-            className="w-full bg-[#e1d8c7] text-gray-900 hover:bg-[#d1c8b7]"
-            disabled={isPending || !publicKey || !isActive}
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : !isActive ? (
-              'Sale Inactive'
-            ) : !publicKey ? (
-              'Connect Wallet to Purchase'
-            ) : (
-              'Buy BARK Tokens'
-            )}
-          </Button>
-        </form>
+        {formContent}
       </CardContent>
     </Card>
   );
 }
+

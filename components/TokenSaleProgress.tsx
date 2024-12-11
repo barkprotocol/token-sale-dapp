@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Progress } from '@/components/ui/progress'
 import { formatNumber } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,23 +13,23 @@ import {
 } from "@/components/ui/tooltip"
 import { TOKEN_SALE_CONFIG } from '@/config/token-sale'
 import { useToast } from "@/hooks/use-toast"
+import { InfoCard } from './InfoCard'
 
 type SaleInfo = {
   totalTokens: number
   soldTokens: number
-  price: number
-  startDate: string
-  endDate: string
   remainingTokens: number
-  priceSOL: number
-  priceUSDC: number
-  minPurchase: number
-  maxPurchase: number
+  currentPrice: number
+  startDate: Date
+  endDate: Date
   currentStage: SaleStage
   saleProgress: number
+  softCap: number
+  hardCap: number
 }
 
 type SaleStage = 'Not Started' | 'Pre-Sale' | 'Public Sale' | 'Ended'
+
 
 export function TokenSaleProgress() {
   const [saleInfo, setSaleInfo] = useState<SaleInfo | null>(null)
@@ -37,16 +37,78 @@ export function TokenSaleProgress() {
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
+  const infoCards = useMemo(() => {
+    if (!saleInfo) return [];
+
+    const { soldTokens, remainingTokens, saleProgress, currentStage, softCap, hardCap, currentPrice } = saleInfo;
+
+    return [
+      {
+        title: "Tokens Sold",
+        value: `${formatNumber(soldTokens)} BARK`,
+        info: "The total number of BARK tokens that have been purchased so far."
+      },
+      {
+        title: "Tokens Remaining",
+        value: `${formatNumber(remainingTokens)} BARK`,
+        info: "The number of BARK tokens still available for purchase."
+      },
+      {
+        title: "Sale Progress",
+        value: `${saleProgress.toFixed(2)}%`,
+        info: "The percentage of total tokens that have been sold in this token sale."
+      },
+      {
+        title: "Current Stage",
+        value: currentStage,
+        info: "The current stage of the BARK token sale."
+      },
+      {
+        title: "Current Price",
+        value: `${currentPrice.toFixed(6)} USDC`,
+        info: "The current price per BARK token."
+      },
+      {
+        title: "Soft Cap / Hard Cap",
+        value: `$${formatNumber(softCap)} / $${formatNumber(hardCap)}`,
+        info: "The soft cap and hard cap for the token sale in USDC."
+      }
+    ];
+  }, [saleInfo]);
+
   useEffect(() => {
     const fetchSaleInfo = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch('/api/sale-info')
-        if (!response.ok) {
-          throw new Error('Failed to fetch sale info')
+        // In a real application, this would be an API call
+        const now = new Date()
+        let currentStage: SaleStage = 'Not Started'
+        let currentPrice = TOKEN_SALE_CONFIG.preSalePrice
+        let totalTokens = TOKEN_SALE_CONFIG.preSaleAllocation
+
+        if (now >= TOKEN_SALE_CONFIG.endDate) {
+          currentStage = 'Ended'
+        } else if (now >= TOKEN_SALE_CONFIG.publicSaleDate) {
+          currentStage = 'Public Sale'
+          currentPrice = TOKEN_SALE_CONFIG.publicSalePrice
+          totalTokens = TOKEN_SALE_CONFIG.totalSaleAllocation
+        } else if (now >= TOKEN_SALE_CONFIG.startDate) {
+          currentStage = 'Pre-Sale'
         }
-        const data: SaleInfo = await response.json()
-        setSaleInfo(data)
+
+        const info: SaleInfo = {
+          totalTokens,
+          soldTokens: TOKEN_SALE_CONFIG.soldTokens,
+          remainingTokens: totalTokens - TOKEN_SALE_CONFIG.soldTokens,
+          currentPrice,
+          startDate: TOKEN_SALE_CONFIG.startDate,
+          endDate: TOKEN_SALE_CONFIG.endDate,
+          currentStage,
+          saleProgress: (TOKEN_SALE_CONFIG.soldTokens / totalTokens) * 100,
+          softCap: TOKEN_SALE_CONFIG.softCap,
+          hardCap: TOKEN_SALE_CONFIG.hardCap,
+        }
+        setSaleInfo(info)
         setError(null)
       } catch (error) {
         console.error('Error fetching sale info:', error)
@@ -75,8 +137,6 @@ export function TokenSaleProgress() {
     return <ErrorCard message={error || 'An unexpected error occurred'} />
   }
 
-  const { totalTokens, soldTokens, remainingTokens, saleProgress, currentStage } = saleInfo
-
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-8">
       <Card className="overflow-hidden max-w-5xl mx-auto">
@@ -85,63 +145,25 @@ export function TokenSaleProgress() {
           <p className="text-sm text-gray-600 mt-2">Track the progress of the BARK token sale in real-time. Stay informed about the current stage, tokens sold, and remaining availability.</p>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
-          <div className="space-y-2">
-            <Progress value={saleProgress} className="h-4 bg-[#e1d8c7] [&>div]:bg-gradient-to-r [&>div]:from-[#e1d8c7] [&>div]:to-[#d1c8b7]" />
-            <div className="flex justify-between text-sm text-gray-500">
-              <span>0 BARK</span>
-              <span>{formatNumber(totalTokens)} BARK</span>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InfoCard
-              title="Tokens Sold"
-              value={`${formatNumber(soldTokens)} BARK`}
-              info="The total number of BARK tokens that have been purchased so far."
-            />
-            <InfoCard
-              title="Tokens Remaining"
-              value={`${formatNumber(remainingTokens)} BARK`}
-              info="The number of BARK tokens still available for purchase."
-            />
-            <InfoCard
-              title="Sale Progress"
-              value={`${(Number(saleProgress) || 0).toFixed(2)}%`}
-              info="The percentage of total tokens that have been sold in this token sale."
-            />
-            <InfoCard
-              title="Current Stage"
-              value={currentStage}
-              info="The current stage of the BARK token sale."
-            />
-          </div>
+          {saleInfo && (
+            <>
+              <div className="space-y-2">
+                <Progress value={saleInfo.saleProgress} className="h-4 bg-[#e1d8c7] [&>div]:bg-gradient-to-r [&>div]:from-[#e1d8c7] [&>div]:to-[#d1c8b7]" />
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>0 BARK</span>
+                  <span>{formatNumber(saleInfo.totalTokens)} BARK</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {infoCards.map((card, index) => (
+                  <InfoCard key={index} {...card} />
+                ))}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
-  )
-}
-
-function InfoCard({ title, value, info }: { title: string, value: string, info: string }) {
-  return (
-    <Card className="shadow-smooth transition-all duration-300 hover:shadow-smooth-lg">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-gray-600 flex items-center justify-between">
-          {title}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
-                <InfoIcon className="h-4 w-4 text-gray-400" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-xs text-xs">{info}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-xl font-bold text-gray-800">{value}</p>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -157,7 +179,7 @@ function LoadingCard() {
           <div className="animate-pulse space-y-4">
             <div className="h-4 bg-gray-200 rounded"></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[...Array(4)].map((_, i) => (
+              {[...Array(6)].map((_, i) => (
                 <div key={i} className="h-20 bg-gray-200 rounded"></div>
               ))}
             </div>
@@ -185,3 +207,4 @@ function ErrorCard({ message }: { message: string }) {
     </div>
   )
 }
+

@@ -1,26 +1,27 @@
-'use client'
+import { createContext, useContext, ReactNode, useMemo } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useConnection } from '@solana/wallet-adapter-react';
 
-import { ReactNode } from 'react'
-import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react'
-import { WalletModalProvider } from '@solana/wallet-adapter-react-ui'
-import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets'
-import { clusterApiUrl } from '@solana/web3.js'
-
-require('@solana/wallet-adapter-react-ui/styles.css')
-
-const network = clusterApiUrl('mainnet-beta')
-
-const wallets = [new PhantomWalletAdapter()]
+const WalletConnectionContext = createContext<ReturnType<typeof useWallet> & { connection: ReturnType<typeof useConnection>['connection'] } | undefined>(undefined);
 
 export function WalletConnectionProvider({ children }: { children: ReactNode }) {
+  const wallet = useWallet();
+  const { connection } = useConnection();
+
+  const value = useMemo(() => ({ ...wallet, connection }), [wallet, connection]);
+
   return (
-    <ConnectionProvider endpoint={network}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>{children}</WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
-  )
+    <WalletConnectionContext.Provider value={value}>
+      {children}
+    </WalletConnectionContext.Provider>
+  );
 }
 
-export { WalletProvider }
+export function useWalletConnection() {
+  const context = useContext(WalletConnectionContext);
+  if (context === undefined) {
+    throw new Error('useWalletConnection must be used within a WalletConnectionProvider');
+  }
+  return context;
+}
 

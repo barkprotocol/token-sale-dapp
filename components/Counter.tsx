@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { TOKEN_SALE_CONFIG } from '@/config/token-sale'
 
 type SaleStage = 'Not Started' | 'Pre-Sale' | 'Public Sale' | 'Ended'
@@ -73,7 +73,7 @@ export function Counter() {
     return () => clearInterval(timer)
   }, [calculateTimeLeft])
 
-  const getDescription = (currentStage: SaleStage): string => {
+  const getDescription = useCallback((currentStage: SaleStage): string => {
     switch (currentStage) {
       case 'Not Started':
         return 'Time until Pre-Sale begins'
@@ -86,7 +86,16 @@ export function Counter() {
       default:
         return ''
     }
-  }
+  }, [])
+
+  const timeLeftElements = useMemo(() => (
+    Object.entries(timeLeft).map(([key, value]) => (
+      <div key={key} className="bg-gray-100 p-4 rounded-lg shadow-sm">
+        <div className="text-3xl sm:text-4xl font-bold text-gray-800 mb-1">{value}</div>
+        <div className="text-xs sm:text-sm text-gray-600 uppercase">{key}</div>
+      </div>
+    ))
+  ), [timeLeft])
 
   return (
     <div className="text-center">
@@ -97,12 +106,7 @@ export function Counter() {
         </span>
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {Object.entries(timeLeft).map(([key, value]) => (
-          <div key={key} className="bg-gray-100 p-4 rounded-lg shadow-sm">
-            <div className="text-3xl sm:text-4xl font-bold text-gray-800 mb-1">{value}</div>
-            <div className="text-xs sm:text-sm text-gray-600 uppercase">{key}</div>
-          </div>
-        ))}
+        {timeLeftElements}
       </div>
     </div>
   )

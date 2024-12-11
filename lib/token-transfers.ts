@@ -17,15 +17,18 @@ import {
 import { TOKEN_SALE_CONFIG } from '@/config/token-sale';
 
 // Mainnet USDC mint address
-const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); 
+const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
 const TRANSACTION_OPTIONS = { commitment: 'confirmed' as Commitment };
+
+// BARK token mint address
+const BARK_MINT = new PublicKey(TOKEN_SALE_CONFIG.barkTokenMint);
 
 export async function transferTokens(
   connection: Connection,
   payerPublicKey: PublicKey,
   recipientAccount: PublicKey,
   amount: number,
-  currency: 'SOL' | 'USDC'
+  currency: 'SOL' | 'USDC' | 'BARK'
 ): Promise<string> {
   if (amount <= 0) {
     throw new Error('Amount must be greater than zero.');
@@ -34,9 +37,10 @@ export async function transferTokens(
   try {
     const transaction = new Transaction();
 
+    // Handle different currencies
     if (currency === 'SOL') {
       // Convert SOL to lamports (smallest unit of SOL)
-      const lamports = amount;
+      const lamports = amount * LAMPORTS_PER_SOL;
       transaction.add(
         SystemProgram.transfer({
           fromPubkey: payerPublicKey,
@@ -44,11 +48,14 @@ export async function transferTokens(
           lamports,
         })
       );
-    } else if (currency === 'USDC') {
-      // Convert amount to smallest unit (USDC uses 6 decimals)
-      const amountInSmallestUnit = amount; // amount is already in the smallest unit
-      const fromTokenAccount = await getAssociatedTokenAddress(USDC_MINT, payerPublicKey);
-      const toTokenAccount = await getAssociatedTokenAddress(USDC_MINT, recipientAccount);
+    } else if (currency === 'USDC' || currency === 'BARK') {
+      const mint = currency === 'USDC' ? USDC_MINT : BARK_MINT;
+      const decimals = currency === 'USDC' ? 6 : TOKEN_SALE_CONFIG.barkTokenDecimals;
+      
+      // Convert amount to smallest unit
+      const amountInSmallestUnit = Math.floor(amount * Math.pow(10, decimals));
+      const fromTokenAccount = await getAssociatedTokenAddress(mint, payerPublicKey);
+      const toTokenAccount = await getAssociatedTokenAddress(mint, recipientAccount);
 
       // Check if the recipient's token account exists
       const receiverAccount = await getAccount(connection, toTokenAccount).catch(() => null);
@@ -59,7 +66,7 @@ export async function transferTokens(
             payerPublicKey,
             toTokenAccount,
             recipientAccount,
-            USDC_MINT
+            mint
           )
         );
       }
@@ -75,10 +82,13 @@ export async function transferTokens(
         )
       );
     } else {
-      throw new Error('Unsupported currency');
+      throw new Error(`Unsupported currency: ${currency}`);
     }
 
-    transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    // Get the latest blockhash
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    transaction.recentBlockhash = blockhash;
+    transaction.lastValidBlockHeight = lastValidBlockHeight;
     transaction.feePayer = payerPublicKey;
 
     // Serialize the transaction
@@ -181,3 +191,4 @@ export async function createTokenAccount(
     }
   }
 }
+

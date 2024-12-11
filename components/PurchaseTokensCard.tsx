@@ -17,6 +17,7 @@ import { getSaleInfo, isSaleActive, validatePurchase } from '@/lib/server-utils'
 import { transferTokens } from '@/lib/token-transfers'
 import { PublicKey, Transaction } from '@solana/web3.js';
 import { WalletButton } from './wallet-button';
+import "@/app/styles/wallet-button.css";
 
 type PaymentCurrency = 'SOL' | 'USDC'
 
@@ -27,10 +28,10 @@ const currencyIcons: Record<PaymentCurrency, string> = {
 
 export function PurchaseTokensCard() {
   const [amount, setAmount] = useState(TOKEN_SALE_CONFIG.minPurchase);
-  const [currency, setCurrency] = useState<PaymentCurrency>('SOL');
+  const [currency, setCurrency] = useState<PaymentCurrency>('USDC');
   const [prices, setPrices] = useState<PriceData | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [saleInfo, setSaleInfo] = useState<any>(null);
+  const [saleInfo, setSaleInfo] = useState<any>({ currentPrice: 0, remainingTokens: 0 });
   const [isActive, setIsActive] = useState(false);
   const { toast } = useToast()
   const { publicKey } = useWallet();
@@ -44,15 +45,6 @@ export function PurchaseTokensCard() {
         setIsActive(await isSaleActive());
         const priceData = await fetchPrices();
         setPrices(priceData);
-        if (priceData) {
-          const barkPriceSOL = getBARKPrice('SOL', priceData);
-          const barkPriceUSDC = getBARKPrice('USDC', priceData);
-          setSaleInfo((prevInfo: any) => ({
-            ...prevInfo,
-            priceSOL: barkPriceSOL,
-            priceUSDC: barkPriceUSDC
-          }));
-        }
       } catch (error) {
         console.error('Error fetching data:', error);
         toast({
@@ -70,18 +62,18 @@ export function PurchaseTokensCard() {
 
   const incrementAmount = useCallback(() => {
     setAmount(prev => Math.min(prev + 1000, TOKEN_SALE_CONFIG.maxPurchase));
-  }, []);
+  }, [TOKEN_SALE_CONFIG.maxPurchase]);
 
   const decrementAmount = useCallback(() => {
     setAmount(prev => Math.max(prev - 1000, TOKEN_SALE_CONFIG.minPurchase));
-  }, []);
+  }, [TOKEN_SALE_CONFIG.minPurchase]);
 
   const handleAmountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= TOKEN_SALE_CONFIG.minPurchase && value <= TOKEN_SALE_CONFIG.maxPurchase) {
       setAmount(value);
     }
-  }, []);
+  }, [TOKEN_SALE_CONFIG.minPurchase, TOKEN_SALE_CONFIG.maxPurchase]);
 
   const handleCurrencyChange = useCallback((value: string) => {
     setCurrency(value as PaymentCurrency);
@@ -105,7 +97,7 @@ export function PurchaseTokensCard() {
       })
       return;
     }
-    if (!prices) {
+    if (!prices || !prices.solana || !prices['usd-coin']) {
       toast({
         title: "Price Information Unavailable",
         description: "Unable to fetch current prices. Please try again later.",
@@ -117,9 +109,10 @@ export function PurchaseTokensCard() {
       (async () => {
         try {
           validatePurchase(amount);
-          const cost = currency === 'SOL' 
-            ? amount * saleInfo.priceSOL
-            : convertToUSD(amount * saleInfo.priceSOL, 'SOL', prices);
+          const currentPrice = saleInfo.currentStage === 'Pre-Sale' ? TOKEN_SALE_CONFIG.preSalePrice : TOKEN_SALE_CONFIG.publicSalePrice;
+          const cost = currency === 'SOL'
+            ? convertFromUSD(amount * currentPrice, 'SOL', prices)
+            : amount * currentPrice;
           const serializedTransaction = await transferTokens(
             connection,
             publicKey,
@@ -147,13 +140,13 @@ export function PurchaseTokensCard() {
         }
       })();
     });
-  }, [amount, currency, publicKey, connection, saleInfo, prices, isActive, toast]);
+  }, [amount, currency, publicKey, connection, saleInfo, prices, isActive, toast, TOKEN_SALE_CONFIG.preSalePrice, TOKEN_SALE_CONFIG.publicSalePrice, TOKEN_SALE_CONFIG.receivingWallet]);
 
   const totalCost = saleInfo && prices
-    ? (currency === 'SOL'
-        ? saleInfo.priceSOL * amount
-        : convertToUSD(saleInfo.priceSOL * amount, 'SOL', prices))
-    : 0;
+  ? (currency === 'SOL'
+      ? convertFromUSD((saleInfo.currentPrice || 0) * amount, 'SOL', prices)
+      : (saleInfo.currentPrice || 0) * amount)
+  : 0;
 
   return (
     <Card className="pb-6">
@@ -161,6 +154,11 @@ export function PurchaseTokensCard() {
         <CardTitle>Purchase BARK Tokens</CardTitle>
       </CardHeader>
       <CardContent>
+      {!saleInfo ? (
+        <div className="flex justify-center items-center h-40">
+          <Loader2 className="h-8 w-8 animate-spin text-[#e1d8c7]" />
+        </div>
+      ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2 mb-4">
             <div className="flex justify-between items-center bg-gray-100 p-3 rounded-lg">
@@ -168,7 +166,9 @@ export function PurchaseTokensCard() {
               <div className="flex items-center">
                 <span className="text-sm font-bold text-[#e1d8c7] mr-2">
                   {saleInfo && prices
-                    ? (currency === 'SOL' ? saleInfo.priceSOL.toFixed(6) : saleInfo.priceUSDC.toFixed(6))
+                    ? (currency === 'SOL'
+                        ? convertFromUSD(saleInfo.currentPrice || 0, 'SOL', prices).toFixed(6)
+                        : (saleInfo.currentPrice || 0).toFixed(6))
                     : '...'} {currency}
                 </span>
                 <Image
@@ -182,7 +182,7 @@ export function PurchaseTokensCard() {
             <div className="flex justify-between items-center bg-gray-100 p-3 rounded-lg">
               <span className="text-sm font-medium text-gray-700">Purchase Limits:</span>
               <span className="text-sm font-bold text-[#e1d8c7]">
-                {formatNumber(TOKEN_SALE_CONFIG.minPurchase)} - {formatNumber(TOKEN_SALE_CONFIG.maxPurchase)} BARK
+                {formatNumber(saleInfo?.remainingTokens || 0)} - {formatNumber(TOKEN_SALE_CONFIG.maxPurchase)} BARK
               </span>
             </div>
           </div>
@@ -266,9 +266,11 @@ export function PurchaseTokensCard() {
               {totalCost.toFixed(6)} {currency}
             </span>
           </div>
-          <WalletButton 
+          <WalletButton
+            variant="wide"
             onClick={handleSubmit}
             disabled={isPending || !isActive}
+            className="mt-4"
           >
             {!publicKey ? (
               'Connect Wallet'
@@ -284,8 +286,8 @@ export function PurchaseTokensCard() {
             )}
           </WalletButton>
         </form>
+      )}
       </CardContent>
     </Card>
   );
 }
-

@@ -1,30 +1,68 @@
 'use server'
 
-import { TOKEN_SALE_CONFIG } from '@/config/tokenSale'
+import { revalidatePath } from 'next/cache'
+import { TOKEN_SALE_CONFIG } from '@/config/token-sale'
+import { validatePurchase, updateSoldTokens, getSaleInfo } from '@/lib/server-utils'
+import { fetchPrices, convertToUSD, Currency } from '@/lib/currency-utils'
+import { transferTokens } from '@/lib/token-transfers'
+import { Connection, PublicKey } from '@solana/web3.js'
 
-export async function purchaseTokens(amount: number) {
-  // In a real-world scenario, you would:
-  // 1. Verify the user's wallet connection
-  // 2. Check if the user has sufficient SOL balance
-  // 3. Perform the actual token transfer
-  // 4. Update the token sale state in the database
+export async function purchaseTokens(amount: number, currency: Currency, walletAddress: string) {
+  try {
+    // Validate the purchase amount
+    validatePurchase(amount);
 
-  // For this example, we'll simulate the purchase
-  const totalCost = amount * TOKEN_SALE_CONFIG.price
-  
-  // Simulate a delay to mimic blockchain transaction time
-  await new Promise(resolve => setTimeout(resolve, 2000))
+    // Check if the sale is active
+    const saleInfo = await getSaleInfo();
+    if (saleInfo.currentStage === 'Not Started' || saleInfo.currentStage === 'Ended') {
+      throw new Error('Token sale is not active');
+    }
 
-  // Simulate a successful purchase
-  const success = Math.random() > 0.1 // 90% success rate
+    // Fetch current prices
+    const prices = await fetchPrices();
 
-  if (success) {
-    // In a real app, you would update the actual sold tokens count in the database
-    console.log(`Successfully purchased ${amount} BARK tokens for ${totalCost} SOL`)
-    return { success: true, amount, totalCost }
-  } else {
-    console.error('Purchase failed')
-    return { success: false, error: 'Transaction failed. Please try again.' }
+    // Calculate the cost in USD and the chosen currency
+    const costInSOL = amount * TOKEN_SALE_CONFIG.price;
+    const costInUSD = convertToUSD(costInSOL, 'SOL', prices);
+    const costInChosenCurrency = currency === 'SOL' ? costInSOL : convertToUSD(costInUSD, 'USDC', prices);
+
+    // Set up the connection to the Solana network
+    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_ENDPOINT!, 'confirmed');
+    const buyerPublicKey = new PublicKey(walletAddress);
+    const receivingWallet = new PublicKey(TOKEN_SALE_CONFIG.receivingWallet);
+
+    // Perform the token transfer
+    const txid = await transferTokens(
+      connection,
+      buyerPublicKey,
+      receivingWallet,
+      Math.round(costInChosenCurrency * (currency === 'SOL' ? 1e9 : 1e6)), // Convert to lamports or USDC base units
+      currency
+    );
+
+    // Update the number of sold tokens
+    updateSoldTokens(amount);
+
+    // Revalidate the token sale page to reflect the updated numbers
+    revalidatePath('/token-sale');
+
+    return {
+      success: true,
+      message: `Successfully purchased ${amount} BARK tokens`,
+      transactionDetails: {
+        amount,
+        currency,
+        costInChosenCurrency: costInChosenCurrency.toFixed(6),
+        costInUSD: costInUSD.toFixed(2),
+        transactionId: txid,
+        buyerAddress: walletAddress,
+      },
+    };
+  } catch (error) {
+    console.error('Purchase error:', error);
+    return { 
+      success: false,
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    };
   }
 }
-

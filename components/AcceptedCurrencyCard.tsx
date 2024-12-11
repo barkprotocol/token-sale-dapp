@@ -41,22 +41,22 @@ export function AcceptedCurrencyCard() {
   ]
 
   return (
-    <Card className="overflow-hidden pb-6 bg-white shadow-xl rounded-xl">
-      <CardHeader className="text-white p-6 bg-gradient-to-r from-gray-950 to-gray-900 rounded-t-xl">
+    <Card className="overflow-hidden pb-6">
+      <CardHeader className="bg-gradient-to-r from-gray-950 to-gray-900 text-white p-6">
         <CardTitle className="text-xl font-bold">Accepted Currencies</CardTitle>
         <p className="text-sm text-gray-300 mt-2">BARK tokens can be purchased using the following cryptocurrencies. Prices are updated in real-time.</p>
       </CardHeader>
       <CardContent className="p-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {currencies.map((currency) => (
-            <div key={currency.name} className="flex items-center space-x-3 p-4 rounded-xl bg-gray-100 shadow-md transition-all duration-300 hover:shadow-xl hover:scale-105 hover:bg-gray-50">
+            <div key={currency.name} className="flex items-center space-x-3 p-3 rounded-xl bg-gray-50 shadow-md transition-all duration-300 hover:shadow-lg hover:scale-105">
               <div className="flex-shrink-0">
                 <Image src={currency.logo} alt={`${currency.name} logo`} width={40} height={40} className="rounded-full" />
               </div>
               <div className="flex-grow">
                 <p className="text-base font-semibold text-gray-800">{currency.name}</p>
                 {loading ? (
-                  <Skeleton className="h-3 w-24 mt-1" />
+                  <Skeleton className="h-3 w-20 mt-1" />
                 ) : prices ? (
                   <p className="text-xs text-gray-600 mt-1">
                     1 BARK = <span className="font-medium text-green-600">{getBARKPrice(currency.name, prices).toFixed(6)} {currency.name}</span>
@@ -72,3 +72,4 @@ export function AcceptedCurrencyCard() {
     </Card>
   )
 }
+
