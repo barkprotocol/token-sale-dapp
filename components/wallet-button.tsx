@@ -58,7 +58,7 @@ export function WalletButton({
         <WalletMultiButton className={buttonClass}>
           {connecting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-4 h-4 w-4 animate-spin" />
               Connecting...
             </>
           ) : (
@@ -69,4 +69,3 @@ export function WalletButton({
     </>
   )
 }
-

@@ -1,29 +1,28 @@
-import type { Metadata } from "next";
-import { Inter } from 'next/font/google';
-import "./styles/globals.css";
+import "@/app/styles/globals.css"
+import { Inter } from 'next/font/google'
 import { Toaster } from "@/components/ui/toaster"
+import { WalletProviderWrapper } from "@/components/wallet-provider-wrapper"
+import { WalletConnectionProvider } from "@/components/wallet-provider"
 
-const inter = Inter({ 
-  subsets: ["latin"],
-  variable: '--font-inter',
-});
-
-export const metadata: Metadata = {
-  title: "BARK Token Sale",
-  description: "Join the future of decentralized finance with BARK Token on the Solana blockchain.",
-};
+const inter = Inter({ subsets: ['latin'] })
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
-    <html lang="en" className={`${inter.variable}`}>
-      <body className={inter.className}>
-        {children}
-        <Toaster />
+    <html lang="en">
+      <body className={`${inter.className} flex flex-col min-h-screen bg-background text-foreground`}>
+        <WalletProviderWrapper>
+          <WalletConnectionProvider>
+
+            {children}
+            <Toaster />
+          </WalletConnectionProvider>
+        </WalletProviderWrapper>
       </body>
     </html>
-  );
+  )
 }
+

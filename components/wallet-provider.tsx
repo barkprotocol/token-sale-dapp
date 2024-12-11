@@ -1,3 +1,5 @@
+'use client'
+
 import { createContext, useContext, ReactNode, useMemo } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useConnection } from '@solana/wallet-adapter-react';

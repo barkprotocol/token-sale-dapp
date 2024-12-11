@@ -1,4 +1,4 @@
-// next.config.js
+// Default Next.js configuration
 const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
@@ -17,23 +17,24 @@ const nextConfig = {
   },
 };
 
-// Optionally, dynamically load user config if it exists
-let userConfig = undefined;
-try {
-  // The path to the user config file (adjust if needed)
-  userConfig = require('./next.config.js');
-} catch (e) {
-  console.error('Error loading user config:', e);
-}
+// Function to safely load and merge user config if exists
+function mergeUserConfig(nextConfig) {
+  let userConfig;
+  try {
+    // Load the user config file dynamically
+    userConfig = require('./next.config.js');
+  } catch (e) {
+    // If user config is missing or an error occurs, log and proceed with default config
+    console.error('Error loading user config:', e);
+    return nextConfig;
+  }
 
-// Merge the user config into the nextConfig
-function mergeConfig(nextConfig, userConfig) {
-  if (!userConfig) return;
-
+  // Merge the user config into the nextConfig
   for (const key in userConfig) {
     if (
       typeof nextConfig[key] === 'object' &&
-      !Array.isArray(nextConfig[key])
+      !Array.isArray(nextConfig[key]) &&
+      nextConfig[key] !== null
     ) {
       nextConfig[key] = {
         ...nextConfig[key],
@@ -43,8 +44,9 @@ function mergeConfig(nextConfig, userConfig) {
       nextConfig[key] = userConfig[key];
     }
   }
+
+  return nextConfig;
 }
 
-mergeConfig(nextConfig, userConfig);
-
-module.exports = nextConfig;
+// Merge the user config into the default nextConfig
+module.exports = mergeUserConfig(nextConfig);

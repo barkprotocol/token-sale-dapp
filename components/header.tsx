@@ -12,10 +12,10 @@ export function Header() {
           <Logo />
           <nav className="flex items-center space-x-6">
             <Link 
-              href="/about" 
+              href="/token-sale" 
               className="text-sm font-medium hover:text-gray-600 transition-colors font-inter"
             >
-              About
+              Token Sale
             </Link>
             <Link 
               href="/faq" 
@@ -23,7 +23,7 @@ export function Header() {
             >
               FAQ
             </Link>
-            <WalletButton />
+            <WalletButton variant="default" className="px-4 py-2" />
           </nav>
         </div>
       </div>
