@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertTriangle } from 'lucide-react'
 import { TOKEN_SALE_CONFIG } from '@/config/token-sale'
 import { useToast } from "@/hooks/use-toast"
-import { InfoCard } from './InfoCard'
+import { InfoCard } from './info-card'
 
 type SaleStage = 'Not Started' | 'Pre-Sale' | 'Public Sale' | 'Ended'
 

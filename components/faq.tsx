@@ -1,5 +1,8 @@
+'use client'
+
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { QuestionMarkCircledIcon } from "@radix-ui/react-icons"
 
 const faqItems = [
   {
@@ -28,19 +31,24 @@ const faqItems = [
   }
 ]
 
-export function FAQContent() {
+export function FAQ() {
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
-        <CardTitle className="text-3xl font-bold text-center">Frequently Asked Questions</CardTitle>
+    <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300">
+      <CardHeader className="bg-bark-primary text-white p-6">
+        <CardTitle className="text-2xl font-bold text-center flex items-center justify-center">
+          <QuestionMarkCircledIcon className="w-8 h-8 mr-2" />
+          Frequently Asked Questions
+        </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-6">
         <Accordion type="single" collapsible className="w-full">
           {faqItems.map((item, index) => (
             <AccordionItem key={index} value={`item-${index}`}>
-              <AccordionTrigger className="text-left">{item.question}</AccordionTrigger>
+              <AccordionTrigger className="text-left text-lg font-semibold hover:text-bark-accent transition-colors duration-200">
+                {item.question}
+              </AccordionTrigger>
               <AccordionContent>
-                <p className="text-gray-700">{item.answer}</p>
+                <p className="text-gray-700 mt-2 mb-4 leading-relaxed">{item.answer}</p>
               </AccordionContent>
             </AccordionItem>
           ))}

@@ -1,7 +1,7 @@
 import { TOKEN_SALE_CONFIG, getCurrentPrice, getTotalTokens, getRemainingTokens } from '@/config/token-sale'
 import { fetchPrices, convertToUSD, Currency } from '@/lib/currency-utils'
 import { Connection, PublicKey } from '@solana/web3.js';
-import { transferTokens } from './token-transfers';
+import { transferTokens } from './utils/token-transfers';
 
 export type SaleStage = 'Not Started' | 'Pre-Sale' | 'Public Sale' | 'Ended';
 

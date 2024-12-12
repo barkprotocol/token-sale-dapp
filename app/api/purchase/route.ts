@@ -1,9 +1,28 @@
-import { NextResponse } from 'next/server'
-import { TOKEN_SALE_CONFIG, getCurrentPrice } from '@/config/token-sale'
-import { validatePurchase, updateSoldTokens, isSaleActive } from '@/lib/server-utils'
-import { fetchPrices, convertToUSD, Currency } from '@/lib/currency-utils'
+import { NextRequest, NextResponse } from 'next/server'
+import { Connection, PublicKey } from '@solana/web3.js'
+import { 
+  validatePurchase, 
+  calculatePurchaseCost, 
+  processPurchase, 
+  isSaleActive,
+  getCurrentSaleStage,
+  isWalletWhitelisted
+} from '@/lib/utils/token-sale'
+import { Currency } from '@/lib/currency-utils'
+import rateLimit from '@/lib/utils/rate-limit'
 
-export async function POST(request: Request) {
+const limiter = rateLimit({
+  interval: 60 * 1000, // 1 minute
+  uniqueTokenPerInterval: 500, // Max 500 users per minute
+})
+
+export async function POST(request: NextRequest) {
+  try {
+    await limiter.check(10, 'CACHE_TOKEN') // 10 requests per minute
+  } catch {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
+  }
+
   try {
     const { amount, currency, walletAddress } = await request.json();
 
@@ -23,63 +42,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Token sale is not active' }, { status: 400 });
     }
 
-    // Fetch current prices
-    const prices = await fetchPrices();
-
-    if (!prices) {
-      return NextResponse.json({ error: 'Failed to fetch current prices' }, { status: 500 });
+    // Check if the wallet is whitelisted (for pre-sale stage)
+    const currentStage = getCurrentSaleStage();
+    if (currentStage === 'Pre-Sale') {
+      const buyerPublicKey = new PublicKey(walletAddress);
+      const isWhitelisted = await isWalletWhitelisted(buyerPublicKey);
+      if (!isWhitelisted) {
+        return NextResponse.json({ error: 'Wallet is not whitelisted for pre-sale' }, { status: 403 });
+      }
     }
 
-    // Get the current price
-    const currentPrice = getCurrentPrice();
+    // Calculate the cost
+    const cost = await calculatePurchaseCost(amount, currency as Currency);
 
-    // Calculate the cost in USD
-    const costInUSD = amount * currentPrice;
+    const connection = new Connection(process.env.SOLANA_RPC_NETWORK_URL!);
+    const buyerPublicKey = new PublicKey(walletAddress);
 
-    // Calculate the cost in the chosen currency (SOL or USDC)
-    const costInChosenCurrency = currency === 'SOL' 
-      ? convertToUSD(costInUSD, 'USDC', prices)
-      : costInUSD;
+    // Process the purchase
+    const signature = await processPurchase(amount, currency as Currency, connection, buyerPublicKey);
 
-    // Simulate blockchain transaction with a 90% success rate
-    const transactionSuccess = Math.random() > 0.1;
-
-    if (transactionSuccess) {
-      // Update the number of sold tokens
-      updateSoldTokens(amount);
-
-      // Simulate transaction hash
-      const transactionHash = `sim_${Math.random().toString(36).substr(2, 9)}`;
-
-      return NextResponse.json({
-        success: true,
-        message: `Successfully purchased ${amount} BARK tokens`,
-        transactionDetails: {
-          amount,
-          currency,
-          costInChosenCurrency: costInChosenCurrency.toFixed(6),
-          costInUSD: costInUSD.toFixed(2),
-          transactionHash,
-          buyerAddress: walletAddress,
-        },
-      });
-    } else {
-      // Simulate specific transaction failure reasons
-      const failureReasons = [
-        'Insufficient funds',
-        'Network congestion',
-        'Slippage tolerance exceeded',
-      ];
-      const randomReason = failureReasons[Math.floor(Math.random() * failureReasons.length)];
-
-      return NextResponse.json({ 
-        error: `Transaction failed: ${randomReason}. Please try again.` 
-      }, { status: 500 });
-    }
+    return NextResponse.json({
+      success: true,
+      message: `Successfully purchased ${amount} BARK tokens`,
+      transactionDetails: {
+        amount,
+        currency,
+        cost: cost.toFixed(6),
+        transactionSignature: signature,
+        buyerAddress: walletAddress,
+      },
+    });
   } catch (error) {
     console.error('Purchase error:', error);
-
-    // Provide meaningful error messages
     return NextResponse.json({ 
       error: error instanceof Error ? error.message : 'An unknown error occurred' 
     }, { status: 400 });

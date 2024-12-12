@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { TOKEN_SALE_CONFIG } from '@/config/token-sale'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Clock, Calendar } from 'lucide-react'
 
 type SaleStage = 'Not Started' | 'Pre-Sale' | 'Public Sale' | 'Ended'
 
@@ -90,25 +93,52 @@ export function Counter() {
 
   const timeLeftElements = useMemo(() => (
     Object.entries(timeLeft).map(([key, value]) => (
-      <div key={key} className="bg-gray-100 p-4 rounded-lg shadow-sm">
-        <div className="text-3xl sm:text-4xl font-bold text-gray-800 mb-1">{value}</div>
-        <div className="text-xs sm:text-sm text-gray-600 uppercase">{key}</div>
+      <div key={key} className="flex flex-col items-center justify-center bg-gray-800 p-4 rounded-lg">
+        <div className="text-3xl sm:text-4xl font-bold text-white mb-1">{value.toString().padStart(2, '0')}</div>
+        <div className="text-xs sm:text-sm text-[#d0c8b9] uppercase">{key}</div>
       </div>
     ))
   ), [timeLeft])
 
+  const getBadgeColor = (currentStage: SaleStage): string => {
+    switch (currentStage) {
+      case 'Not Started':
+        return 'bg-yellow-100 text-yellow-800'
+      case 'Pre-Sale':
+        return 'bg-blue-100 text-blue-800'
+      case 'Public Sale':
+        return 'bg-green-100 text-green-800'
+      case 'Ended':
+        return 'bg-gray-100 text-gray-800'
+      default:
+        return ''
+    }
+  }
+
   return (
-    <div className="text-center">
-      <h2 className="flex flex-col items-center mb-6">
-        <span className="text-gray-800 text-3xl font-bold mb-2">{stage}</span>
-        <span className="text-sm font-normal text-gray-600">
-          {getDescription(stage)}
-        </span>
-      </h2>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {timeLeftElements}
-      </div>
-    </div>
+    <Card className="w-full max-w-4xl mx-auto my-8 bg-gray-900 text-[#d0c8b9]">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold text-center text-white">BARK Token Sale</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex flex-col items-center">
+          <Badge className={`text-sm font-semibold mb-2 ${getBadgeColor(stage)}`}>
+            {stage}
+          </Badge>
+          <p className="text-sm flex items-center">
+            <Clock className="w-4 h-4 mr-1" />
+            {getDescription(stage)}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {timeLeftElements}
+        </div>
+        <div className="text-sm flex items-center justify-center">
+          <Calendar className="w-4 h-4 mr-1" />
+          Sale ends on {TOKEN_SALE_CONFIG.endDate.toLocaleDateString()}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

@@ -3,18 +3,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { Scroll } from 'lucide-react'
 
 export default function PrivacyPolicy() {
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-bark-secondary">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-12">
-        <Card className="max-w-4xl mx-auto shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-[#e1d8c7] to-[#d1c8b7] text-gray-900 p-6">
-            <CardTitle className="text-3xl font-bold text-center">Privacy Policy</CardTitle>
+        <Card className="max-w-4xl mx-auto shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardHeader className="bg-bark-primary text-white p-6">
+            <CardTitle className="text-3xl font-bold text-center flex items-center justify-center">
+              <Scroll className="mr-2 h-8 w-8" />
+              Privacy Policy
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-8">
-            <div className="space-y-6">
+            <div className="space-y-8">
               <Section title="1. Information Collection">
                 We collect personal information that you provide to us when participating in the BARK Token sale.
               </Section>
@@ -44,7 +48,10 @@ export default function PrivacyPolicy() {
               </Section>
 
               <Section title="8. Contact Us">
-                If you have any questions about this privacy policy, please contact us at privacy@barkprotocol.com.
+                If you have any questions about this privacy policy, please contact us at{' '}
+                <a href="mailto:privacy@barkprotocol.com" className="text-bark-accent hover:underline">
+                  privacy@barkprotocol.com
+                </a>.
               </Section>
             </div>
           </CardContent>
@@ -57,9 +64,9 @@ export default function PrivacyPolicy() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section>
-      <h2 className="text-2xl font-semibold text-gray-800 mb-2">{title}</h2>
-      <p className="text-gray-600">{children}</p>
+    <section className="border-b border-bark-accent pb-4">
+      <h2 className="text-2xl font-semibold text-bark-primary mb-2">{title}</h2>
+      <p className="text-gray-700 leading-relaxed">{children}</p>
     </section>
   )
 }

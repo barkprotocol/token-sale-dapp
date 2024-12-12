@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react';
-import { useTransition } from 'react';
+import { useState, useCallback, useEffect, useTransition } from 'react';
 import Image from 'next/image';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -10,14 +10,12 @@ import { formatNumber } from '@/lib/utils'
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from 'lucide-react'
 import { TOKEN_SALE_CONFIG } from '@/config/token-sale'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { fetchPrices, getBARKPrice, convertToUSD, convertFromUSD, PriceData } from '@/lib/currency-utils'
-import { getSaleInfo, isSaleActive, validatePurchase } from '@/lib/server-utils'
-import { transferTokens } from '@/lib/token-transfers'
-import { PublicKey, Transaction } from '@solana/web3.js';
-import { WalletButton } from './wallet-button';
-import "@/app/styles/wallet-button.css";
+import { useWallet } from '@solana/wallet-adapter-react'
+import { useConnection } from '@solana/wallet-adapter-react'
+import { fetchPrices, getBARKPrice, convertToUSD, convertFromUSD, PriceData, Currency } from '@/lib/currency-utils'
+import { getSaleInfo, isSaleActive, validatePurchase } from '@/lib/utils/token-sale'
+import { transferTokens } from '@/lib/utils/token-transfers'
+import { PublicKey, Transaction } from '@solana/web3.js'
 
 type PaymentCurrency = 'SOL' | 'USDC'
 
@@ -26,7 +24,7 @@ const currencyIcons: Record<PaymentCurrency, string> = {
   USDC: "https://ucarecdn.com/ee18c01a-d01d-4ad6-adb6-cac9a5539d2c/usdc.png"
 }
 
-export function PurchaseTokensCard() {
+function PurchaseTokensCard() {
   const [amount, setAmount] = useState(TOKEN_SALE_CONFIG.minPurchase);
   const [currency, setCurrency] = useState<PaymentCurrency>('USDC');
   const [prices, setPrices] = useState<PriceData | null>(null);
@@ -34,7 +32,7 @@ export function PurchaseTokensCard() {
   const [saleInfo, setSaleInfo] = useState<any>({ currentPrice: 0, remainingTokens: 0 });
   const [isActive, setIsActive] = useState(false);
   const { toast } = useToast()
-  const { publicKey } = useWallet();
+  const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
 
   useEffect(() => {
@@ -62,18 +60,18 @@ export function PurchaseTokensCard() {
 
   const incrementAmount = useCallback(() => {
     setAmount(prev => Math.min(prev + 1000, TOKEN_SALE_CONFIG.maxPurchase));
-  }, [TOKEN_SALE_CONFIG.maxPurchase]);
+  }, []);
 
   const decrementAmount = useCallback(() => {
     setAmount(prev => Math.max(prev - 1000, TOKEN_SALE_CONFIG.minPurchase));
-  }, [TOKEN_SALE_CONFIG.minPurchase]);
+  }, []);
 
   const handleAmountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= TOKEN_SALE_CONFIG.minPurchase && value <= TOKEN_SALE_CONFIG.maxPurchase) {
       setAmount(value);
     }
-  }, [TOKEN_SALE_CONFIG.minPurchase, TOKEN_SALE_CONFIG.maxPurchase]);
+  }, []);
 
   const handleCurrencyChange = useCallback((value: string) => {
     setCurrency(value as PaymentCurrency);
@@ -121,8 +119,7 @@ export function PurchaseTokensCard() {
             currency
           );
           const transaction = Transaction.from(Buffer.from(serializedTransaction, 'base64'));
-          const signedTransaction = await window.solana.signTransaction(transaction);
-          const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+          const signature = await sendTransaction(transaction, connection);
           await connection.confirmTransaction(signature, 'confirmed');
           const updatedInfo = await getSaleInfo();
           setSaleInfo(updatedInfo);
@@ -140,13 +137,13 @@ export function PurchaseTokensCard() {
         }
       })();
     });
-  }, [amount, currency, publicKey, connection, saleInfo, prices, isActive, toast, TOKEN_SALE_CONFIG.preSalePrice, TOKEN_SALE_CONFIG.publicSalePrice, TOKEN_SALE_CONFIG.receivingWallet]);
+  }, [amount, currency, publicKey, connection, saleInfo, prices, isActive, toast, sendTransaction]);
 
   const totalCost = saleInfo && prices
-  ? (currency === 'SOL'
-      ? convertFromUSD((saleInfo.currentPrice || 0) * amount, 'SOL', prices)
-      : (saleInfo.currentPrice || 0) * amount)
-  : 0;
+    ? (currency === 'SOL'
+        ? convertFromUSD((saleInfo.currentPrice || 0) * amount, 'SOL', prices)
+        : (saleInfo.currentPrice || 0) * amount)
+    : 0;
 
   return (
     <Card className="pb-6">
@@ -156,15 +153,15 @@ export function PurchaseTokensCard() {
       <CardContent>
       {!saleInfo ? (
         <div className="flex justify-center items-center h-40">
-          <Loader2 className="h-8 w-8 animate-spin text-[#e1d8c7]" />
+          <Loader2 className="h-8 w-8 animate-spin text-bark-primary" />
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2 mb-4">
-            <div className="flex justify-between items-center bg-gray-100 p-3 rounded-lg">
+            <div className="flex justify-between items-center bg-bark-secondary p-3 rounded-lg">
               <span className="text-sm font-medium text-gray-700">Price per BARK:</span>
               <div className="flex items-center">
-                <span className="text-sm font-bold text-[#e1d8c7] mr-2">
+                <span className="text-sm font-bold text-bark-primary mr-2">
                   {saleInfo && prices
                     ? (currency === 'SOL'
                         ? convertFromUSD(saleInfo.currentPrice || 0, 'SOL', prices).toFixed(6)
@@ -179,9 +176,9 @@ export function PurchaseTokensCard() {
                 />
               </div>
             </div>
-            <div className="flex justify-between items-center bg-gray-100 p-3 rounded-lg">
+            <div className="flex justify-between items-center bg-bark-secondary p-3 rounded-lg">
               <span className="text-sm font-medium text-gray-700">Purchase Limits:</span>
-              <span className="text-sm font-bold text-[#e1d8c7]">
+              <span className="text-sm font-bold text-bark-primary">
                 {formatNumber(saleInfo?.remainingTokens || 0)} - {formatNumber(TOKEN_SALE_CONFIG.maxPurchase)} BARK
               </span>
             </div>
@@ -195,7 +192,7 @@ export function PurchaseTokensCard() {
                 type="button"
                 onClick={decrementAmount}
                 variant="outline"
-                className="rounded-r-none bg-[#e1d8c7] text-gray-900 hover:bg-[#d1c8b7]"
+                className="rounded-r-none bg-bark-secondary text-gray-900 hover:bg-bark-accent"
                 disabled={isPending}
               >
                 -
@@ -216,7 +213,7 @@ export function PurchaseTokensCard() {
                 type="button"
                 onClick={incrementAmount}
                 variant="outline"
-                className="rounded-l-none bg-[#e1d8c7] text-gray-900 hover:bg-[#d1c8b7]"
+                className="rounded-l-none bg-bark-secondary text-gray-900 hover:bg-bark-accent"
                 disabled={isPending}
               >
                 +
@@ -260,21 +257,18 @@ export function PurchaseTokensCard() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex justify-between items-center bg-gray-100 p-3 rounded-lg">
+          <div className="flex justify-between items-center bg-bark-secondary p-3 rounded-lg">
             <span className="text-sm font-medium text-gray-700">Total cost:</span>
-            <span className="text-sm font-bold text-[#e1d8c7]">
+            <span className="text-sm font-bold text-bark-primary">
               {totalCost.toFixed(6)} {currency}
             </span>
           </div>
-          <WalletButton
-            variant="wide"
+          <Button
             onClick={handleSubmit}
-            disabled={isPending || !isActive}
-            className="mt-4"
+            disabled={isPending || !isActive || !publicKey}
+            className="w-full mt-4"
           >
-            {!publicKey ? (
-              'Connect Wallet'
-            ) : isPending ? (
+            {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Processing...
@@ -284,10 +278,13 @@ export function PurchaseTokensCard() {
             ) : (
               'Buy BARK Tokens'
             )}
-          </WalletButton>
+          </Button>
         </form>
       )}
       </CardContent>
     </Card>
   );
 }
+
+export { PurchaseTokensCard };
+

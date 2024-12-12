@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { TOKEN_SALE_CONFIG } from '@/config/token-sale'
 import { validatePurchase, updateSoldTokens, getSaleInfo } from '@/lib/server-utils'
 import { fetchPrices, convertToUSD, Currency } from '@/lib/currency-utils'
-import { transferTokens } from '@/lib/token-transfers'
+import { transferTokens } from '@/lib/utils/token-transfers'
 import { Connection, PublicKey } from '@solana/web3.js'
 
 export async function purchaseTokens(amount: number, currency: Currency, walletAddress: string) {

@@ -12,7 +12,7 @@ import { Loader2 } from 'lucide-react'
 import { useWalletConnection } from "./wallet-provider"
 import { fetchPrices, getBARKPrice, convertToUSD, convertFromUSD } from '@/lib/currency-utils'
 import { getSaleInfo, isSaleActive, validatePurchase } from '@/lib/server-utils'
-import { transferTokens } from '@/lib/token-transfers'
+import { transferTokens } from '@/lib/utils/token-transfers'
 import { PublicKey } from '@solana/web3.js';
 
 export function TokenSale() {

@@ -1,71 +1,56 @@
 'use client'
 
+import { useWallet } from '@solana/wallet-adapter-react'
+import { useWalletModal } from '@solana/wallet-adapter-react-ui'
+import { Button } from '@/components/ui/button'
 import { useState, useEffect } from 'react'
-import { Button } from "@/components/ui/button"
-import { useWallet } from "@solana/wallet-adapter-react"
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui"
-import { Loader2 } from 'lucide-react'
-import "@/app/styles/wallet-button.css"
+import { Wallet } from 'lucide-react'
 
-interface WalletButtonProps {
-  onClick?: () => void;
-  disabled?: boolean;
-  children?: React.ReactNode;
-  className?: string;
-  variant?: 'default' | 'wide';
+const truncateAddress = (address: string) => {
+  return `${address.slice(0, 4)}...${address.slice(-4)}`
 }
 
-export function WalletButton({ 
-  onClick, 
-  disabled = false, 
-  children, 
-  className = "",
-  variant = 'wide'
-}: WalletButtonProps) {
-  const { publicKey, connecting, connected, disconnect } = useWallet()
+export function WalletButton() {
+  const { wallet, connect, disconnect, connecting, connected } = useWallet()
+  const { setVisible } = useWalletModal()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
+  if (!mounted) return null
+
   const handleClick = () => {
     if (connected) {
       disconnect()
-    } else if (onClick) {
-      onClick()
+    } else if (wallet) {
+      connect().catch(() => {})
+    } else {
+      setVisible(true)
     }
   }
 
-  const buttonClass = `wallet-adapter-button w-full ${className} h-10`
-
-  if (!mounted) {
-    return null
-  }
-
   return (
-    <>
-      {connected && publicKey ? (
-        <Button 
-          variant="outline" 
-          className={buttonClass}
-          onClick={handleClick}
-          disabled={disabled}
-        >
-          {children || `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`}
-        </Button>
-      ) : (
-        <WalletMultiButton className={buttonClass}>
-          {connecting ? (
-            <>
-              <Loader2 className="mr-4 h-4 w-4 animate-spin" />
-              Connecting...
-            </>
-          ) : (
-            children || 'Connect Wallet'
-          )}
-        </WalletMultiButton>
-      )}
-    </>
+    <Button
+      onClick={handleClick}
+      disabled={connecting}
+      variant="outline"
+      className="bg-white text-gray-900 hover:bg-gray-100 hover:text-gray-900 focus:ring-bark-accent border border-gray-300 px-6 py-2 text-lg flex items-center space-x-2 rounded-md transition-all duration-200 ease-in-out shadow-sm hover:shadow-md"
+    >
+      <Wallet className="w-6 h-6" />
+      <span>
+        {connecting ? (
+          'Connecting...'
+        ) : connected ? (
+          truncateAddress(wallet?.publicKey?.toBase58() || '')
+        ) : wallet ? (
+          'Connect'
+        ) : (
+          'Select Wallet'
+        )}
+      </span>
+    </Button>
   )
 }
+

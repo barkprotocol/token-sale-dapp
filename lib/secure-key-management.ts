@@ -1,5 +1,6 @@
 import { Keypair, Transaction } from "@solana/web3.js";
 import bs58 from "bs58";
+import { createHash } from 'crypto';
 
 /**
  * Retrieves a keypair securely from environment variables.
@@ -21,6 +22,12 @@ export async function getSecureKeypair(keyIdentifier: string): Promise<Keypair> 
 
   try {
     const privateKey = bs58.decode(encodedPrivateKey);
+    
+    // Validate the length of the decoded private key
+    if (privateKey.length !== 64) {
+      throw new Error('Invalid private key length');
+    }
+
     return Keypair.fromSecretKey(privateKey);
   } catch (error: unknown) {
     if (error instanceof Error) {
@@ -45,8 +52,11 @@ export async function signTransactionSecurely(transaction: Transaction, keyIdent
       throw new Error(`Keypair ${keyIdentifier} does not exist`);
     }
 
-    // Send the transaction to the dedicated signing service
-    const signedTransaction = await dedicatedSigningService(transaction, keyIdentifier);
+    // Hash the transaction before sending it to the signing service
+    const transactionHash = hashTransaction(transaction);
+
+    // Send the transaction hash to the dedicated signing service
+    const signedTransaction = await dedicatedSigningService(transactionHash, keyIdentifier);
 
     return signedTransaction;
   } catch (error: unknown) {
@@ -70,25 +80,56 @@ export function verifyKeypairExists(keyIdentifier: string): boolean {
 }
 
 /**
+ * Hashes a transaction for secure transmission.
+ * 
+ * @param transaction - The transaction to hash
+ * @returns The hash of the transaction
+ */
+function hashTransaction(transaction: Transaction): string {
+  const serializedTransaction = transaction.serialize().toString('hex');
+  return createHash('sha256').update(serializedTransaction).digest('hex');
+}
+
+/**
  * Simulates a dedicated signing service API.
  * In a real-world scenario, this would be replaced with actual API calls to a secure signing service.
  * 
- * @param transaction - The transaction to sign
+ * @param transactionHash - The hash of the transaction to sign
  * @param keyIdentifier - A unique identifier for the keypair to use for signing
  * @returns A Promise that resolves to the signed transaction
  */
-async function dedicatedSigningService(transaction: Transaction, keyIdentifier: string): Promise<Transaction> {
+async function dedicatedSigningService(transactionHash: string, keyIdentifier: string): Promise<Transaction> {
   // Simulate API call to signing service
-  console.log(`Sending transaction to dedicated signing service for key: ${keyIdentifier}`);
+  console.log(`Sending transaction hash to dedicated signing service for key: ${keyIdentifier}`);
+  console.log(`Transaction hash: ${transactionHash}`);
   
   // Simulate processing time
   await new Promise(resolve => setTimeout(resolve, 500));
 
   // In a real implementation, the service would sign the transaction and return it
-  // Here, we're just returning the original transaction to simulate the process
+  // Here, we're just returning a new transaction to simulate the process
   console.log('Transaction signed by dedicated service');
-  return transaction;
+  return new Transaction();
 }
 
-// Additional secure key management functions can be added here as needed
+/**
+ * Rotates the keypair associated with the given identifier.
+ * This function should be called periodically to enhance security.
+ * 
+ * @param keyIdentifier - A unique identifier for the keypair
+ * @returns A Promise that resolves when the keypair has been rotated
+ */
+export async function rotateKeypair(keyIdentifier: string): Promise<void> {
+  // Implementation would depend on your key management system
+  // This is a placeholder to demonstrate the concept
+  console.log(`Rotating keypair: ${keyIdentifier}`);
+  // Generate a new keypair
+  const newKeypair = Keypair.generate();
+  // Update the environment variable or secret management system
+  process.env[`SECURE_KEYPAIR_${keyIdentifier.toUpperCase()}`] = bs58.encode(newKeypair.secretKey);
+  console.log(`Keypair ${keyIdentifier} has been rotated`);
+}
+
+// Export types for better type checking in other files
+export type { Keypair, Transaction };
 

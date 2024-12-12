@@ -1,98 +1,79 @@
-// IMPORTANT: This implementation uses a placeholder for secure key management.
-// In a real production environment, never expose private keys in your code.
-// Use a proper key management system as demonstrated by the `getSecureKeypair` function.
-import { useState } from "react";
-import { Keypair, PublicKey, sendAndConfirmTransaction, Transaction, TransactionExpiredBlockheightExceededError } from "@solana/web3.js";
-import { getOrCreateAssociatedTokenAccount, createTransferInstruction } from "@solana/spl-token";
-import { useConnection } from "@solana/wallet-adapter-react";
-import { TOKEN_SALE_CONFIG } from "@/config/token-sale";
-import { getSecureKeypair } from '@/lib/secure-key-management';
+'use client'
 
-const MINT_ADDRESS = TOKEN_SALE_CONFIG.barkTokenMint;
+import { useState, useCallback } from "react";
+import { PublicKey, Connection } from "@solana/web3.js";
+import { useWalletConnection } from "@/components/wallet-provider";
+import { useToast } from "@/hooks/use-toast";
+import { transferTokens } from "@/lib/utils/token-transfers";
+import { Currency } from "@/lib/currency-utils";
 
-// In a production environment, use a secure key management system
-// This could be a hardware security module (HSM), a key management service (KMS),
-// or a secure enclave, depending on your security requirements and infrastructure
-const getFromKeypair = async () => {
-    return await getSecureKeypair('BARK_TOKEN_AUTHORITY');
-};
+export const useSendTokens = () => {
+  const { connection, publicKey } = useWalletConnection();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [transactionUrl, setTransactionUrl] = useState<string | null>(null);
 
-const useSendTokens = () => {
-    const { connection } = useConnection();
-    const [isOpen, setIsOpen] = useState(false);
-    const [transactionUrl, setTransactionUrl] = useState("");
-    const [success, setSuccess] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
-    const [loading, setLoading] = useState(false);
+  const sendTokens = useCallback(async (transferAmount: number, destinationWallet: PublicKey, currency: Currency) => {
+    setIsLoading(true);
+    setTransactionUrl(null);
 
-    const sendTokens = async (TRANSFER_AMOUNT: number, DESTINATION_WALLET: PublicKey) => {
-        setLoading(true);
-        try {
-            const FROM_KEYPAIR = await getFromKeypair();
-            const [sourceAccount, destinationAccount] = await Promise.all([
-                getOrCreateAssociatedTokenAccount(connection, FROM_KEYPAIR, new PublicKey(MINT_ADDRESS), FROM_KEYPAIR.publicKey),
-                getOrCreateAssociatedTokenAccount(connection, FROM_KEYPAIR, new PublicKey(MINT_ADDRESS), DESTINATION_WALLET),
-            ]);
+    if (!connection || !publicKey) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet to send tokens.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
 
-            const latestBlockHash = await connection.getLatestBlockhash("confirmed");
+    try {
+      const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+      
+      if (!treasuryWallet) {
+        throw new Error("Treasury wallet address is not configured.");
+      }
 
-            const sendTransaction = async () => {
-                const tx = new Transaction();
-                tx.add(createTransferInstruction(
-                    sourceAccount.address,
-                    destinationAccount.address,
-                    FROM_KEYPAIR.publicKey,
-                    TRANSFER_AMOUNT * Math.pow(10, TOKEN_SALE_CONFIG.barkTokenDecimals)
-                ));
-                tx.recentBlockhash = latestBlockHash.blockhash;
-                tx.feePayer = FROM_KEYPAIR.publicKey;
+      const signature = await transferTokens(
+        connection,
+        treasuryWallet,
+        destinationWallet,
+        transferAmount,
+        currency
+      );
 
-                try {
-                    const signature = await sendAndConfirmTransaction(connection, tx, [FROM_KEYPAIR]);
-                    return signature;
-                } catch (error) {
-                    console.error("Transaction failed:", error);
-                    throw error;
-                }
-            };
+      const explorerUrl = `https://explorer.solana.com/tx/${signature}`;
+      setTransactionUrl(explorerUrl);
+      
+      toast({
+        title: "Transaction Successful",
+        description: (
+          <div>
+            Tokens have been sent successfully.
+            <a href={explorerUrl} target="_blank" rel="noopener noreferrer" className="block mt-2 text-bark-accent hover:underline">
+              View on Solana Explorer
+            </a>
+          </div>
+        ),
+      });
+    } catch (error) {
+      console.error("Error sending tokens:", error);
+      toast({
+        title: "Transaction Failed",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [connection, publicKey, toast]);
 
-            let signature;
-            try {
-                signature = await sendTransaction();
-            } catch (error) {
-                if (error instanceof TransactionExpiredBlockheightExceededError) {
-                    console.log("Transaction expired, retrying...");
-                    signature = await sendTransaction();
-                } else {
-                    throw error;
-                }
-            }
-
-            setLoading(false);
-            setIsOpen(true);
-            setTransactionUrl(`https://explorer.solana.com/tx/${signature}`);
-            setSuccess(true);
-        } catch (error) {
-            console.error(error);
-            setLoading(false);
-            setIsOpen(true);
-            if (error instanceof Error) {
-                setErrorMessage(error.message);
-            } else {
-                setErrorMessage("An unknown error occurred");
-            }
-        }
-    };
-
-    return {
-        sendTokens,
-        loading,
-        isOpen,
-        errorMessage,
-        success,
-        setIsOpen,
-        transactionUrl,
-    };
+  return {
+    sendTokens,
+    isLoading,
+    transactionUrl,
+  };
 };
 
 export default useSendTokens;
+

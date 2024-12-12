@@ -1,3 +1,5 @@
+export type SaleStage = 'Not Started' | 'Pre-Sale' | 'Public Sale' | 'Ended';
+
 export const TOKEN_SALE_CONFIG = {
   startDate: new Date('2025-01-01T00:00:00Z'),
   publicSaleDate: new Date('2025-01-08T00:00:00Z'),
@@ -35,7 +37,7 @@ export function getRemainingTokens(): number {
   return TOKEN_SALE_CONFIG.totalSaleAllocation - TOKEN_SALE_CONFIG.soldTokens;
 }
 
-export function getSaleStage(): 'Not Started' | 'Pre-Sale' | 'Public Sale' | 'Ended' {
+export function getSaleStage(): SaleStage {
   const now = new Date();
   if (now < TOKEN_SALE_CONFIG.startDate) {
     return 'Not Started';
@@ -62,5 +64,40 @@ export function formatTokenAmount(amount: number): string {
 
 export function isValidPurchaseAmount(amount: number): boolean {
   return amount >= TOKEN_SALE_CONFIG.minPurchase && amount <= TOKEN_SALE_CONFIG.maxPurchase;
+}
+
+export function getTimeUntilNextStage(): number {
+  const now = new Date();
+  const currentStage = getSaleStage();
+  
+  switch (currentStage) {
+    case 'Not Started':
+      return TOKEN_SALE_CONFIG.startDate.getTime() - now.getTime();
+    case 'Pre-Sale':
+      return TOKEN_SALE_CONFIG.publicSaleDate.getTime() - now.getTime();
+    case 'Public Sale':
+      return TOKEN_SALE_CONFIG.endDate.getTime() - now.getTime();
+    default:
+      return 0;
+  }
+}
+
+export function formatTimeRemaining(milliseconds: number): string {
+  const seconds = Math.floor(milliseconds / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  return `${days}d ${hours % 24}h ${minutes % 60}m ${seconds % 60}s`;
+}
+
+export function updateSoldTokens(amount: number): void {
+  if (amount <= 0) {
+    throw new Error('Invalid amount: Must be greater than 0');
+  }
+  if (TOKEN_SALE_CONFIG.soldTokens + amount > getTotalTokens()) {
+    throw new Error('Not enough tokens available for purchase');
+  }
+  TOKEN_SALE_CONFIG.soldTokens += amount;
 }
 
